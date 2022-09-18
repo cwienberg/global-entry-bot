@@ -56,7 +56,8 @@ class Location:
 
     @cached_property
     def timezone(self):
-        tz_string = _location_details().get('tzData', 'UTC')
+        tz_string = _location_details().get(self.code, {}).get('tzData', 'UTC')
+        logging.info('Using timezone %s for location %s', tz_string, self.name)
         return ZoneInfo(tz_string)
 
     def __str__(self):
