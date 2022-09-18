@@ -18,9 +18,42 @@ pip install -r requirements.txt
 
 ## Usage
 
-To check for new appointment slots, run `main.py`. The application accpes a `-h`/`--help` flag to see usage. I suggest automating this using Cron.
+To check for new appointment slots, run `main.py`. The application exposes several subcommands:
+```
+usage: main.py [-h] [--verbose] {locations,appointments,tweet} ...
 
-### Credentials
+options:
+  -h, --help            show this help message and exit
+  --verbose, -v         Use verbose logging
+
+subcommands:
+  valid subcommands
+
+  {locations,appointments,tweet}
+                        possible subcommands
+    locations           Get interview locations
+    appointments        Get available appointments
+    tweet               Tweet available appointments
+```
+
+### Locations
+
+To check or tweet appointments, you must supply an integer identifier of the location you would like to check. You can get those identifiers with the `locations` subcommand, e.g.:
+```
+$ python main.py locations
+5001	Hidalgo Enrollment Center
+5002	San Diego -Otay Mesa Enrollment Center
+```
+
+### Appointments
+
+You can check appointments with the `appointments` subcommand. It takes pairs of the form `NAME,CODE`, where `NAME` is a name chosen by the user (for human readability), and `CODE` is the identifier for the enrollment center (see `locations` subcommand). For example, LAX is `LAX,5180` and SFO is `SFO,5446`.
+
+### Tweet
+
+You can tweet appointments with the `tweet` subcommand. As with the `appointments` subcommand, it takes pairs of the form `NAME,CODE`. It requires twitter credentials (see below), and exposes a `-t/--test` flag to do everything but actually tweet.
+
+#### Credentials
 
 You will need to supply your Twitter API credentials. You can do this in two ways. The first is with environment variables:
 ```
@@ -34,13 +67,6 @@ consumer_key = consumer_key
 consumer_secret = consumer_secret
 access_token_key = access_token_key
 access_token_secret = access_token_secret
-```
-### Locations
-
-You will need to supply what enrollment centers will be polled as command line arguments. You can poll as many as you wish. The format is as `NAME,CODE` comma-separated token. For instance, LAX is `LAX,5180` and SFO is `SFO,5001`. For instance:
-
-```
-python main.py A,B C,D
 ```
 
 ### Docker

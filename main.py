@@ -33,10 +33,14 @@ def _location_details():
     except requests.ConnectionError:
         logging.exception('Could not connect to location details endpoint')
         raise
+    logging.info('Got details for %s locations', len(results))
     return {
         location_detail['id']: location_detail
         for location_detail in results
-        if 'id 'in location_detail
+        if 'id' in location_detail
+        and location_detail.get('operational')
+        and not location_detail.get('temporary')
+        and not location_detail.get('inviteOnly')
     }
 
 
@@ -55,6 +59,9 @@ class Location:
         tz_string = _location_details().get('tzData', 'UTC')
         return ZoneInfo(tz_string)
 
+    def __str__(self):
+        return f'{self.name} ({self.code})'
+
 
 @dataclass(frozen=True)
 class Appointment:
@@ -64,11 +71,6 @@ class Appointment:
     @cached_property
     def human_readable_time(self):
         return self.time.strftime(MESSAGE_TIME_FORMAT)
-
-    @cached_property
-    def message(self):
-        return NOTIF_MESSAGE.format(location=self.location.name,
-                                    date=self.human_readable_time)
 
 
 @dataclass(frozen=True)
@@ -121,10 +123,16 @@ class AppointmentTweeter(object):
         self._test_mode = test_mode
         self._api = api
 
+    @staticmethod
+    def _compose_message(appointment):
+        return NOTIF_MESSAGE.format(location=appointment.location.name,
+                                    date=appointment.human_readable_time)
+
     def tweet(self, appointment):
-        logging.info('Message: ' + appointment.message)
+        message = self._compose_message(appointment)
+        logging.info('Message: ' + message)
         if not self._test_mode:
-            self._tweet(appointment.message)
+            self._tweet(message)
 
     def _tweet(self, message):
         logging.info('Tweeting: ' + message)
@@ -170,31 +178,69 @@ def read_credentials(credentials_file):
         return TwitterApiCredentials.from_env()
 
 
-def main():
+def write_locations(args):
+    logging.info('Writing locations')
+    for location_details in _location_details().values():
+        print(f"{location_details.get('id', '')}\t{location_details.get('name', '')}")
+
+
+def _all_appointments(args):
+    logging.info('Starting checks (locations: {})'.format(len(args.locations)))
+    return itertools.chain.from_iterable(
+        get_appointments(location) for location in args.locations
+    )
+
+
+def write_appointments(args):
+    logging.info('Writing appointments')
+    for appointment in _all_appointments(args):
+        print(f'{appointment.location}\t{appointment.human_readable_time}')
+
+
+def tweet_appointments(args):
+    logging.info('Tweeting appointments')
+    credentials = read_credentials(args.credentials)
+    tweeter = AppointmentTweeter.from_credentials(credentials, args.test)
+    for appointment in _all_appointments(args):
+        tweeter.tweet(appointment)
+
+def parse_args(args):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--test', '-t', action='store_true', default=False)
-    parser.add_argument('--verbose', '-v', action='store_true', default=False)
-    parser.add_argument('--credentials', '-c', type=argparse.FileType('r'),
-                        help='File with Twitter API credentials [default: use ENV variables]')
-    parser.add_argument('locations', nargs='+', metavar='NAME,CODE', type=Location.parse,
-                        help="Locations to check, as a name and code (e.g. 'SFO,5446')")
-    args = parser.parse_args()
+    parser.add_argument('--verbose', '-v', action='store_true', default=False, help='Use verbose logging')
+
+    subparsers = parser.add_subparsers(title='subcommands', description='valid subcommands',
+                                       help='possible subcommands')
+
+    locations_parser = subparsers.add_parser('locations', help='Get interview locations')
+    locations_parser.set_defaults(func=write_locations)
+
+    get_appointments_parser = subparsers.add_parser('appointments', help='Get available appointments')
+    get_appointments_parser.set_defaults(func=write_appointments)
+
+    tweet_appointments_parser = subparsers.add_parser('tweet', help='Tweet available appointments')
+    tweet_appointments_parser.add_argument('--test', '-t', action='store_true', default=False)
+    tweet_appointments_parser.add_argument('--credentials', '-c', type=argparse.FileType('r'),
+                                           help='File with Twitter API credentials [default: use ENV variables]')
+    tweet_appointments_parser.set_defaults(func=tweet_appointments)
+
+    for takes_location_subparser in (get_appointments_parser, tweet_appointments_parser):
+        takes_location_subparser.add_argument('locations', nargs='+', metavar='NAME,CODE', type=Location.parse,
+                                              help="Locations to check, as a name and code (e.g. 'SFO,5446')")
+
+    known_args = parser.parse_known_args(args)
+    return parser.parse_args(known_args[1], known_args[0])
+
+
+def main(raw_args):
+    args = parse_args(raw_args)
 
     if args.verbose:
         logging.basicConfig(format=LOGGING_FORMAT,
                             level=logging.INFO,
-                            stream=sys.stdout)
+                            stream=sys.stderr)
 
-    credentials = read_credentials(args.credentials)
-    tweeter = AppointmentTweeter.from_credentials(credentials, args.test)
-
-    logging.info('Starting checks (locations: {})'.format(len(args.locations)))
-    appointments = itertools.chain.from_iterable(
-        get_appointments(location) for location in args.locations
-    )
-    for appointment in appointments:
-        tweeter.tweet(appointment)
+    args.func(args)
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1:])
