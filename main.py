@@ -206,7 +206,8 @@ def tweet_appointments(args):
 
 def parse_args(args):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--verbose', '-v', action='store_true', default=False, help='Use verbose logging')
+    parser.add_argument('--verbose', '-v', dest='log_level', action='store_const', default=logging.WARNING, 
+                        const=logging.INFO, help='Use verbose logging')
 
     subparsers = parser.add_subparsers(title='subcommands', description='valid subcommands',
                                        help='possible subcommands')
@@ -233,12 +234,7 @@ def parse_args(args):
 
 def main(raw_args):
     args = parse_args(raw_args)
-
-    if args.verbose:
-        logging.basicConfig(format=LOGGING_FORMAT,
-                            level=logging.INFO,
-                            stream=sys.stderr)
-
+    logging.basicConfig(format=LOGGING_FORMAT, level=args.log_level, stream=sys.stderr)
     args.func(args)
 
 
