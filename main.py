@@ -227,7 +227,8 @@ def parse_args(args):
         takes_location_subparser.add_argument('locations', nargs='+', metavar='NAME,CODE', type=Location.parse,
                                               help="Locations to check, as a name and code (e.g. 'SFO,5446')")
 
-    return parser.parse_args(args)
+    known_args = parser.parse_known_args(args)
+    return parser.parse_args(known_args[1], known_args[0])
 
 
 def main(raw_args):
