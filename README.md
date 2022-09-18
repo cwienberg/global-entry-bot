@@ -71,7 +71,9 @@ access_token_secret = access_token_secret
 
 ### Docker
 
-A Dockerfile is supplied. It can be built with:
+The application can be packaged and run with docker. The image is registered at `ghcr.io/cwienberg/global-entry-bot`. The image is built on every commit or pull request to `main`, and is published on commits to `main`. Images are tagged with the git sha and the `latest` tag tracks the `main` branch.
+
+You can also build locally with:
 ```
 docker build -t global-entry-bot .
 ```
