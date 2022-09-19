@@ -16,7 +16,7 @@ import twitter
 LOGGING_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
 
 START_TIME_UTC = datetime.now(timezone.utc)
-END_TIME_UTC = START_TIME_UTC + timedelta(weeks=12)
+DEFAULT_WEEKS_TO_CHECK = 4
 
 LOCATION_DETAIL_URL = 'https://ttp.cbp.dhs.gov/schedulerapi/locations/'
 SCHEDULER_API_URL = 'https://ttp.cbp.dhs.gov/schedulerapi/locations/{location}/slots?startTimestamp={start}&endTimestamp={end}'
@@ -147,9 +147,10 @@ class AppointmentTweeter(object):
                 raise
 
 
-def get_appointments(location):
-    start = START_TIME_UTC.astimezone(location.timezone)
-    end = END_TIME_UTC.astimezone(location.timezone)
+def get_appointments(location, start_time_utc, end_time_utc):
+    start = start_time_utc.astimezone(location.timezone)
+    end = end_time_utc.astimezone(location.timezone)
+
 
     url = SCHEDULER_API_URL.format(location=location.code,
                                    start=start.strftime(TTP_TIME_FORMAT),
@@ -187,8 +188,9 @@ def write_locations(args):
 
 def _all_appointments(args):
     logging.info('Starting checks (locations: {})'.format(len(args.locations)))
+    end_time_utc = START_TIME_UTC + timedelta(weeks=args.weeks)
     return itertools.chain.from_iterable(
-        get_appointments(location) for location in args.locations
+        get_appointments(location, START_TIME_UTC, end_time_utc) for location in args.locations
     )
 
 
@@ -228,6 +230,8 @@ def parse_args(args):
     for takes_location_subparser in (get_appointments_parser, tweet_appointments_parser):
         takes_location_subparser.add_argument('locations', nargs='+', metavar='NAME,CODE', type=Location.parse,
                                               help="Locations to check, as a name and code (e.g. 'SFO,5446')")
+        takes_location_subparser.add_argument('-w', '--weeks', default=DEFAULT_WEEKS_TO_CHECK, type=int,
+                                              help='Number of weeks to search for appointments [default: %(default)s]')
 
     known_args = parser.parse_known_args(args)
     return parser.parse_args(known_args[1], known_args[0])
